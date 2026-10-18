@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="user-scalable=no">
+    <link rel="icon" href="icon/icon.png" type="image/png">
+    <link rel="apple-touch-icon" href="icon/icon.png">
+    <link rel="stylesheet" type="text/css" href="fonts/gamefont.css">
+    <title>OMORI</title>
+</head>
+
+<body style="background-color: black">
+    <div id="loadOverlay">
+        <div id="loadCount">0/0</div>
+        <div id="loadBar"><div id="loadBarFill"></div></div>
+        <div id="loadPercent">0%</div>
+    </div>
+    <div id="fpsDisplay">0 FPS</div>
+    <style>
+        #loadOverlay {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            font-family: GameFont, monospace;
+            color: #ffffff;
+            text-align: center;
+            pointer-events: none;
+            user-select: none;
+        }
+        #loadCount {
+            font-size: 20px;
+            text-shadow: 1px 1px 0 #000;
+        }
+        #loadBar {
+            width: 320px;
+            max-width: 60vw;
+            height: 12px;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+        #loadBarFill {
+            width: 0%;
+            height: 100%;
+            background: #ffffff;
+            transition: width 0.15s linear;
+        }
+        #loadPercent {
+            font-size: 16px;
+            text-shadow: 1px 1px 0 #000;
+        }
+        #fpsDisplay {
+            position: fixed;
+            left: 8px;
+            bottom: 8px;
+            z-index: 9999;
+            font-family: GameFont, monospace;
+            font-size: 16px;
+            color: #ffffff;
+            text-shadow: 1px 1px 0 #000;
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+    <script type="text/javascript" src="js/web_shim.js"></script>
+    <script type="text/javascript">
+        (function () {
+            var overlay = document.getElementById('loadOverlay');
+            var countEl = document.getElementById('loadCount');
+            var fillEl = document.getElementById('loadBarFill');
+            var pctEl = document.getElementById('loadPercent');
+            var total = 0;
+            try { total = (window.__assetManifestCount && window.__assetManifestCount()) || 0; } catch (e) {}
+            var seen = {};
+            var loaded = 0;
+            // The site may be served from a sub-path (e.g. /omori-webport/ on
+            // GitHub Pages); manifest keys are relative to that base.
+            var basePath = location.pathname.slice(0, location.pathname.lastIndexOf('/') + 1);
+            try {
+                fetch('asset-manifest.json').then(function (r) { return r.json(); }).then(function (data) {
+                    if (data && data.files && data.files.length) { total = data.files.length; render(); }
+                }).catch(function () {});
+            } catch (e) {}
+            function manifestName(url) {
+                try {
+                    var u = new URL(url, location.href);
+                    if (u.origin !== location.origin) { return null; }
+                    var p = u.pathname;
+                    if (basePath && p.indexOf(basePath) === 0) {
+                        p = p.slice(basePath.length);
+                    } else {
+                        p = p.replace(/^\//, '');
+                    }
+                    return decodeURIComponent(p);
+                } catch (e) { return null; }
+            }
+            function countUrl(url) {
+                var name = manifestName(url);
+                if (!name || Object.prototype.hasOwnProperty.call(seen, name)) { return; }
+                if (window.__assetExists && !window.__assetExists(name)) { return; }
+                seen[name] = true;
+                loaded++;
+                render();
+            }
+            function render() {
+                countEl.textContent = loaded + '/' + total;
+                var pct = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+                fillEl.style.width = pct + '%';
+                pctEl.textContent = pct + '%';
+            }
+            function scan() {
+                if (!window.performance || !performance.getEntriesByType) { return; }
+                var entries = performance.getEntriesByType('resource');
+                for (var i = 0; i < entries.length; i++) { countUrl(entries[i].name); }
+            }
+            if (window.PerformanceObserver) {
+                try {
+                    new PerformanceObserver(function (list) {
+                        var entries = list.getEntries();
+                        for (var i = 0; i < entries.length; i++) { countUrl(entries[i].name); }
+                    }).observe({ entryTypes: ['resource'] });
+                } catch (e) {}
+            }
+            scan();
+            render();
+            var timer = setInterval(function () {
+                scan();
+                var scene = window.SceneManager && window.SceneManager._scene;
+                if (scene && scene.constructor && scene.constructor.name !== 'Scene_Boot') {
+                    clearInterval(timer);
+                    if (overlay) { overlay.style.display = 'none'; }
+                }
+            }, 200);
+        })();
+    </script>
+    <script type="text/javascript">
+        (function () {
+            var el = document.getElementById('fpsDisplay');
+            if (!el || !window.requestAnimationFrame) { return; }
+            var frames = 0;
+            var last = performance.now();
+            function loop(now) {
+                frames++;
+                if (now - last >= 500) {
+                    el.textContent = Math.round(frames * 1000 / (now - last)) + ' FPS';
+                    frames = 0;
+                    last = now;
+                }
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
+        })();
+    </script>
+    <script type="text/javascript" src="js/libs/pixi.js"></script>
+    <script type="text/javascript" src="js/libs/pixi-tilemap.js"></script>
+    <script type="text/javascript" src="js/libs/pixi-picture.js"></script>
+    <script type="text/javascript" src="js/libs/lz-string.js"></script>
+    <script type="text/javascript" src="js/libs/js-yaml.browser.js"></script>
+    <script type="text/javascript" src="js/libs/iphone-inline-video.browser.js"></script>
+    <script type="text/javascript" src="js/rpg_core.js"></script>
+    <script type="text/javascript" src="js/rpg_managers.js"></script>
+    <script type="text/javascript" src="js/rpg_objects.js"></script>
+    <script type="text/javascript" src="js/rpg_scenes.js"></script>
+    <script type="text/javascript" src="js/rpg_sprites.js"></script>
+    <script type="text/javascript" src="js/rpg_windows.js"></script>
+    <script type="text/javascript" src="js/plugins.js"></script>
+    <script type="text/javascript" src="js/main.js"></script>
+</body>
+
+</html>
